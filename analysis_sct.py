@@ -158,7 +158,7 @@ def regret(actual_job_pts, predicted_job_pts, f_scheduling, f_cost):
     return (costs_actual - costs_optimal) / costs_optimal
 
 
-def line_with_ci(series, series2, x_lab, y_lab, y2_lab):
+def line_with_ci(series, series2, x_lab, y_lab, y2_lab, fig_file=None):
     fig, ax1 = plt.subplots()
 
     x = series.keys()
@@ -178,6 +178,8 @@ def line_with_ci(series, series2, x_lab, y_lab, y2_lab):
     ax2.plot(x, series2.values(), color="red", linestyle=":")
 
     fig.tight_layout()
+    if fig_file is not None:
+        plt.savefig(fig_file, format="pdf")
     plt.show()
 
 
@@ -210,7 +212,7 @@ def experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y, f_hat_
         # 3. Learn \hat{f} through x_i, y_i combinations
         model = f_hat_learner(jobs)
         # 4. Calculate \hat{MSE} on y_i, \hat{f}(x_i). This should equal \sigma^2 of \epsilon.
-        jobs = job_creation_function(10000, sigma2, f_y)
+        jobs = job_creation_function(20000, sigma2, f_y)
         mse = mean_squared_error(ys(jobs), f_hat_predicter(model, jobs))
         print(sigma2, mse)
         # 5. Now also calculate the regret.
@@ -219,7 +221,7 @@ def experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y, f_hat_
         sigma2_x_regret[sigma2] = rgt
         sigma2_x_mse[sigma2] = mse
 
-    line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse')
+    return sigma2_x_regret, sigma2_x_mse
 
 
 def single_experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y, sigma2, f_hat_learner=learn_f_hat, f_hat_predicter=predict_f_hat):
@@ -238,7 +240,7 @@ def single_experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y,
     return (mse, 0), rgt
 
 
-def bar_experiments(experiment_results, x_labels):
+def bar_experiments(experiment_results, x_labels, fig_file=None):
     bar_width = .4
     rgt_bars = []
     rgt_errs = []
@@ -261,6 +263,8 @@ def bar_experiments(experiment_results, x_labels):
     ax2.tick_params(axis='y', labelcolor="red")
     ax2.set_ylabel('mse', color="red")
 
+    if fig_file is not None:
+        plt.savefig(fig_file, format="pdf")
     plt.show()
 
 
@@ -273,48 +277,52 @@ def bar_experiments(experiment_results, x_labels):
 #####################################################
 # # How do regret/ MSE develop depending on sigma^2?
 #####################################################
-# experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5)
+sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5)
+line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse', "graphs/sct_sigma_regret.pdf")
 # # This relation is robust for a different number of jobs.
-# experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5)
+# sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5)
+# line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse')
 # # This relation is robust for different error distribution for each 'task'.
-# experiment(generate_jobs_different_errors, 3, 10000, lambda x1, x2: 5)
+# sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_different_errors, 3, 10000, lambda x1, x2: 5)
+# line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse')
 # # This relation is robust when different tasks have very different processing times.
-# experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: round(x1)*4 + 4, learn_f_hat_mlp)
+# sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: round(x1)*4 + 4, learn_f_hat_mlp)
+# line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse')
 #####################################################
 
 
 #####################################################
 # # What is the effect of a low learning sample?
 #####################################################
-# exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 3, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 3, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 3, 10, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-# ]
-# bar_experiments(exp_results, ["10000 samples", "1000 samples", "100 samples", "10 samples"])
+exp_results = [
+    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 10, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+]
+bar_experiments(exp_results, ["10000 samples", "1000 samples", "100 samples", "10 samples"], "graphs/a_samples.pdf")
 #####################################################
 
 
 #####################################################
 # # What is the effect of under-fitting?
 #####################################################
-# exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1, learn_f_hat_mlp),
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1),
-# ]
-# bar_experiments(exp_results, ["normal", "underfitted"])
+exp_results = [
+    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1, learn_f_hat_mlp),
+    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1),
+]
+bar_experiments(exp_results, ["normal", "underfitted"], "graphs/b_underfitting.pdf")
 #####################################################
 
 
 #####################################################
 # # What is the effect of 'missing features'?
 #####################################################
-# exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1, learn_f_hat_wo_x2, predict_f_hat_wo_x2),
-# ]
-# bar_experiments(exp_results, ["normal", "half features"])
+exp_results = [
+    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1, learn_f_hat_wo_x2, predict_f_hat_wo_x2),
+]
+bar_experiments(exp_results, ["normal", "half features"], "graphs/c_missing_features.pdf")
 #####################################################
 
 #####################################################
@@ -326,5 +334,5 @@ exp_results = [
     single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
     single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
 ]
-bar_experiments(exp_results, ["3 jobs", "6 jobs", "9 jobs", "12 jobs"])
+bar_experiments(exp_results, ["3 jobs", "6 jobs", "9 jobs", "12 jobs"], "graphs/d_nr_jobs.pdf")
 #####################################################
