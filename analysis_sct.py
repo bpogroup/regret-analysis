@@ -241,6 +241,7 @@ def single_experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y,
 
 
 def bar_experiments(experiment_results, x_labels, fig_file=None):
+    fontsize = 16
     bar_width = .4
     rgt_bars = []
     rgt_errs = []
@@ -254,14 +255,23 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
 
     fig, ax1 = plt.subplots()
     ax1.bar([i for i in range(len(rgt_bars))], rgt_bars, width=bar_width, yerr=rgt_errs)
-    ax1.set_xticks([r for r in range(len(rgt_bars))], x_labels, rotation=45)
+    ax1.set_xticks([r for r in range(len(rgt_bars))], x_labels, fontsize=fontsize)
     ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
-    ax1.set_ylabel('regret')
+    ax1.set_ylabel('regret', fontsize=fontsize)
 
     ax2 = ax1.twinx()
     ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, color="red")
     ax2.tick_params(axis='y', labelcolor="red")
-    ax2.set_ylabel('mse', color="red")
+    ax2.set_ylabel('mse', color="red", fontsize=fontsize)
+
+    for tick in ax1.get_xticklabels():
+        tick.set_fontsize(fontsize)
+    for tick in ax1.get_yticklabels():
+        tick.set_fontsize(fontsize)
+    for tick in ax2.get_yticklabels():
+        tick.set_fontsize(fontsize)
+
+    fig.tight_layout()
 
     if fig_file is not None:
         plt.savefig(fig_file, format="pdf")
@@ -300,7 +310,7 @@ exp_results = [
     single_experiment(generate_jobs_gamma, 3, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
     single_experiment(generate_jobs_gamma, 3, 10, lambda x1, x2: 5 * x1 + 5 * x2, 1),
 ]
-bar_experiments(exp_results, ["10000 samples", "1000 samples", "100 samples", "10 samples"], "graphs/a_samples.pdf")
+bar_experiments(exp_results, ["10000", "1000", "100", "10"], "graphs/a_samples.pdf")
 #####################################################
 
 
@@ -322,7 +332,7 @@ exp_results = [
     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1, learn_f_hat_wo_x2, predict_f_hat_wo_x2),
 ]
-bar_experiments(exp_results, ["normal", "half features"], "graphs/c_missing_features.pdf")
+bar_experiments(exp_results, ["normal", "half"], "graphs/c_missing_features.pdf")
 #####################################################
 
 #####################################################
@@ -334,5 +344,5 @@ exp_results = [
     single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
     single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
 ]
-bar_experiments(exp_results, ["3 jobs", "6 jobs", "9 jobs", "12 jobs"], "graphs/d_nr_jobs.pdf")
+bar_experiments(exp_results, ["3", "6", "9", "12"], "graphs/d_nr_jobs.pdf")
 #####################################################
