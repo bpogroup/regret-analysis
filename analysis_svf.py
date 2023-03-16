@@ -79,7 +79,8 @@ def estimate_regret(p_means, p_sigma2s, nr_experiments):
     return avg, avg - ci[0]
 
 
-def line_with_ci(series, series2, x_lab, y_lab, y2_lab, fig_file=None):
+def line_with_ci(series, x_lab, y_lab, series2=None, y2_lab=None, fig_file=None):
+    fontsize = 16
     fig, ax1 = plt.subplots()
 
     x = series.keys()
@@ -89,13 +90,21 @@ def line_with_ci(series, series2, x_lab, y_lab, y2_lab, fig_file=None):
 
     ax1.plot(x, y)
     ax1.fill_between(x, ci_bottom, ci_top, color='blue', alpha=0.1)
-    ax1.set_xlabel(x_lab)
-    ax1.set_ylabel(y_lab)
+    ax1.set_xlabel(x_lab, fontsize=fontsize)
+    ax1.set_ylabel(y_lab, fontsize=fontsize)
 
-    ax2 = ax1.twinx()
-    ax2.set_ylabel(y2_lab, color="red")
-    ax2.tick_params(axis='y', labelcolor="red")
-    ax2.plot(x, series2.values(), color="red", linestyle=":")
+    if series2 is not None:
+        ax2 = ax1.twinx()
+        ax2.set_ylabel(y2_lab, color="red", fontsize=fontsize)
+        ax2.tick_params(axis='y', labelcolor="red")
+        ax2.plot(x, series2.values(), color="red", linestyle=":")
+        for tick in ax2.get_yticklabels():
+            tick.set_fontsize(fontsize)
+
+    for tick in ax1.get_xticklabels():
+        tick.set_fontsize(fontsize)
+    for tick in ax1.get_yticklabels():
+        tick.set_fontsize(fontsize)
 
     fig.tight_layout()
     if fig_file is not None:
@@ -116,7 +125,7 @@ def estimate_mse(means, sigma2s):
     return mse_est/n
 
 
-def experiment():
+def experiment_vary_spread():
     sigma2_x_regret = dict()
     mse_x_regret = dict()
     for sigma2 in [s/10 for s in range(1, 10)] + [s/10 for s in range(10, 50, 5)] + [s/10 for s in range(50, 110, 10)]:
@@ -131,7 +140,25 @@ def experiment():
         sigma2_x_regret[spread] = rgt
         mse_x_regret[spread] = mse
 
-    line_with_ci(sigma2_x_regret, mse_x_regret, r'spread $\sigma^2$', 'regret', 'mse')
+    line_with_ci(sigma2_x_regret, r'spread $\sigma^2$', 'regret', series2=mse_x_regret, y2_lab='mse')
 
 
-experiment()
+def experiment_vary_mse():
+    # different mse, plot regret (keep spread the same to not measure that effect)
+    sigma2_x_regret = dict()
+    for mse in [1+s/10 for s in range(1, 10)] + [1+s/10 for s in range(10, 50, 5)] + [1+s/10 for s in range(50, 110, 10)]:
+        means = [2, 2]
+        sigma2s = [mse + 1, mse - 1]
+
+        rgt = estimate_regret(means, sigma2s, 10000)
+        mse = sum(sigma2s)/len(sigma2s)
+
+        print(mse, rgt)
+
+        sigma2_x_regret[mse] = rgt
+
+    line_with_ci(sigma2_x_regret, 'mse', 'regret')
+
+
+experiment_vary_mse()
+experiment_vary_spread()
