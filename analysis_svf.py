@@ -12,6 +12,28 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error
 
 
+def generate_jobs_gamma_f(n, sigma2, f):
+    """
+    Generates n jobs.
+    Returns the list of jobs, with each job is a tuple (x1, x2, y)
+    """
+    jobs = []
+    for i in range(n):
+        x1 = random.uniform(0, 1)
+        x2 = random.uniform(0, 1)
+
+        k = 1 / 4  # keep fixed to keep the skewness fixed
+        theta = sqrt(sigma2 / k)  # theta = sqrt(sigma^2/k)
+        m = k * theta  # mean = k * theta
+        error = scipy.stats.gamma.rvs(k, scale=theta) - m  # deduct the mean to keep the error around 0
+
+        y = f(x1, x2) + error
+
+        jobs.append((x1, x2, y))
+
+    return jobs
+
+
 def generate_jobs_gamma(p_means, p_sigma2s):
     jobs = []
     for i in range(len(p_means)):
@@ -28,6 +50,69 @@ def generate_jobs_gamma(p_means, p_sigma2s):
         jobs.append((p_mean, p_sigma2, y))
 
     return jobs
+
+
+def generate_jobs_normal(p_means, p_sigma2s):
+    jobs = []
+    for i in range(len(p_means)):
+        p_mean = p_means[i]
+        p_sigma2 = p_sigma2s[i]
+
+        error = -1
+        while error <= 0:
+            error = random.normalvariate(0, sqrt(p_sigma2))
+
+        y = p_mean + error
+
+        jobs.append((p_mean, p_sigma2, y))
+
+    return jobs
+
+
+def generate_jobs_exponential(p_means, p_sigma2s):
+    jobs = []
+    for i in range(len(p_means)):
+        p_mean = p_means[i]
+        p_sigma2 = p_sigma2s[i]
+
+        error = np.random.exponential(scale=np.sqrt(p_sigma2)) - np.sqrt(p_sigma2)
+
+        y = p_mean + error
+
+        jobs.append((p_mean, p_sigma2, y))
+
+    return jobs
+
+
+def generate_jobs_lognormal(p_means, p_sigma2s):
+    jobs = []
+    for i in range(len(p_means)):
+        p_mean = p_means[i]
+        p_sigma2 = p_sigma2s[i]
+
+        error = np.random.lognormal(0, sqrt(p_sigma2))
+
+        y = p_mean + error
+
+        jobs.append((p_mean, p_sigma2, y))
+
+    return jobs
+
+
+def xs(jobs):
+    return np.array([[x1, x2] for (x1, x2, y) in jobs])
+
+
+def ys(jobs):
+    return np.array([y for (x1, x2, y) in jobs])
+
+
+def learn_f_hat(jobs):
+    return LinearRegression().fit(xs(jobs), ys(jobs))
+
+
+def predict_f_hat(model, jobs):
+    return model.predict(xs(jobs))
 
 
 def cost_svf(tau, jobs):
@@ -66,10 +151,10 @@ def regret(jobs):
     return costs_actual
 
 
-def estimate_regret(p_means, p_sigma2s, nr_experiments):
+def estimate_regret(p_means, p_sigma2s, nr_experiments, generation_function):
     regrets = []
     for _ in range(nr_experiments):
-        jobs = generate_jobs_gamma(p_means, p_sigma2s)
+        jobs = generation_function(p_means, p_sigma2s)
 
         regrets.append(regret(jobs))
 
@@ -79,9 +164,28 @@ def estimate_regret(p_means, p_sigma2s, nr_experiments):
     return avg, avg - ci[0]
 
 
-def line_with_ci(series, x_lab, y_lab, series2=None, y2_lab=None, fig_file=None):
-    fontsize = 16
-    fig, ax1 = plt.subplots()
+def estimate_regret_learned(p_means, p_sigma2s, mse_s, nr_experiments, generation_function):
+    regrets = []
+    for _ in range(nr_experiments):
+        optimal_jobs = generation_function(p_means, p_sigma2s)
+        optimal_schedule = schedule_svf(optimal_jobs)
+        optimal_costs = cost_svf(optimal_schedule, optimal_jobs)
+
+        actual_jobs = generation_function(p_means, mse_s)
+        actual_schedule = schedule_svf(actual_jobs)
+        actual_costs = cost_svf(actual_schedule, actual_jobs)
+
+        regrets.append(actual_costs - optimal_costs)
+
+    avg = mean(regrets)
+    ci = st.t.interval(0.95, len(regrets) - 1, loc=avg, scale=st.sem(regrets))
+
+    return avg, avg - ci[0]
+
+
+def line_with_ci(series, x_lab, y_lab, series2=None, y2_lab=None, fig_file=None, x_ticks=None, title=None):
+    fontsize = 18
+    fig, ax1 = plt.subplots(figsize=(10, 6))
 
     x = series.keys()
     y = [m for (m, h) in series.values()]
@@ -90,8 +194,12 @@ def line_with_ci(series, x_lab, y_lab, series2=None, y2_lab=None, fig_file=None)
 
     ax1.plot(x, y)
     ax1.fill_between(x, ci_bottom, ci_top, color='blue', alpha=0.1)
+    if x_ticks is not None:
+        ax1.set_xticks(x_ticks)
     ax1.set_xlabel(x_lab, fontsize=fontsize)
     ax1.set_ylabel(y_lab, fontsize=fontsize)
+    if title is not None:
+        ax1.set_title(title, fontsize=20)
 
     if series2 is not None:
         ax2 = ax1.twinx()
@@ -125,40 +233,119 @@ def estimate_mse(means, sigma2s):
     return mse_est/n
 
 
-def experiment_vary_spread():
-    sigma2_x_regret = dict()
-    mse_x_regret = dict()
-    for sigma2 in [s/10 for s in range(1, 10)] + [s/10 for s in range(10, 50, 5)] + [s/10 for s in range(50, 110, 10)]:
-        means = [1, 1]
-        sigma2s = [sigma2, 20-sigma2]
-
-        rgt = estimate_regret(means, sigma2s, 10000)
-        mse = sum(sigma2s)/len(sigma2s)
-        spread = 20-2*sigma2
-        print(spread, mse, rgt)
-
-        sigma2_x_regret[spread] = rgt
-        mse_x_regret[spread] = mse
-
-    line_with_ci(sigma2_x_regret, r'spread $\sigma^2$', 'regret', series2=mse_x_regret, y2_lab='mse')
-
-
-def experiment_vary_mse():
+def experiment_vary_mse(nr_jobs, generation_function, filename):
     # different mse, plot regret (keep spread the same to not measure that effect)
     sigma2_x_regret = dict()
-    for mse in [1+s/10 for s in range(1, 10)] + [1+s/10 for s in range(10, 50, 5)] + [1+s/10 for s in range(50, 110, 10)]:
-        means = [2, 2]
-        sigma2s = [mse + 1, mse - 1]
+    for sigma2 in [1+s/10 for s in range(1, 1000, 10)]:
+        means = []
+        sigma2s = []
+        for i in range(nr_jobs):
+            means.append(2)  # the means do not matter for this problem
+            sigma2s.append(random.uniform(0, 2 * sigma2))  # we need to vary the MSEs, otherwise it does not make sense
 
-        rgt = estimate_regret(means, sigma2s, 10000)
+        rgt = estimate_regret(means, sigma2s, 10000, generation_function)
         mse = sum(sigma2s)/len(sigma2s)
 
         print(mse, rgt)
 
-        sigma2_x_regret[mse] = rgt
+        sigma2_x_regret[sigma2] = rgt
 
-    line_with_ci(sigma2_x_regret, 'mse', 'regret')
+    line_with_ci(sigma2_x_regret, 'MSE', 'Empirical regret', fig_file=filename, title="Regret vs. MSE")
 
 
-experiment_vary_mse()
-experiment_vary_spread()
+def single_experiment(generation_function, nr_jobs, nr_learning_samples, f_y, sigma2):
+    # different mse, plot regret (keep spread the same to not measure that effect)
+    means = []
+    sigma2s = []
+    mses = []
+    for i in range(nr_jobs):
+        means.append(2)  # the means do not matter for this problem
+        job_sigma2 = (i+1) * (2*sigma2)/nr_jobs  # fixing the sigma's to prevent randomness due to sigma's
+        sigma2s.append(job_sigma2)  # we need to vary the MSEs, otherwise it does not make sense
+
+        # get the MSEs
+        jobs = generate_jobs_gamma_f(nr_learning_samples, sigma2, f_y)
+        model = learn_f_hat(jobs)
+        jobs = generate_jobs_gamma_f(10000, sigma2, f_y)
+        mse = mean_squared_error(ys(jobs), predict_f_hat(model, jobs))
+        mses.append(mse)
+
+    rgt = estimate_regret_learned(means, sigma2s, mses, 10000, generation_function)
+    mse = sum(mses)/len(mses)
+
+    print(sigma2, mse)
+
+    return (mse, 0), rgt
+
+
+def bar_experiments(experiment_results, x_labels, fig_file=None):
+    fontsize = 16
+    bar_width = .4
+    rgt_bars = []
+    rgt_errs = []
+    mse_bars = []
+    mse_errs = []
+    for mse, rgt in experiment_results:
+        rgt_bars.append(rgt[0])
+        rgt_errs.append(rgt[1])
+        mse_bars.append(mse[0])
+        mse_errs.append(mse[1])
+
+    fig, ax1 = plt.subplots()
+    ax1.bar([i for i in range(len(rgt_bars))], rgt_bars, width=bar_width, yerr=rgt_errs)
+    ax1.set_xticks([r+0.5*bar_width for r in range(len(rgt_bars))], x_labels, fontsize=fontsize)
+    # ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
+    ax1.set_ylabel('Empirical regret', fontsize=fontsize)
+    ax1.set_ylim(bottom=0)
+
+    ax2 = ax1.twinx()
+    ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, color="red")
+    ax2.tick_params(axis='y', labelcolor="red")
+    ax2.set_ylabel('MSE', color="red", fontsize=fontsize)
+    ax2.set_ylim(bottom=0)
+
+    for tick in ax1.get_xticklabels():
+        tick.set_fontsize(fontsize)
+    for tick in ax1.get_yticklabels():
+        tick.set_fontsize(fontsize)
+    for tick in ax2.get_yticklabels():
+        tick.set_fontsize(fontsize)
+
+    fig.tight_layout()
+
+    if fig_file is not None:
+        plt.savefig(fig_file, format="pdf")
+    plt.show()
+
+
+# experiment_vary_mse(10, generate_jobs_gamma, "graphs/svf_mse_regret_gamma.pdf")
+# experiment_vary_mse(10, generate_jobs_normal, "graphs/svf_mse_regret_normal.pdf")
+# experiment_vary_mse(10, generate_jobs_lognormal, "graphs/svf_mse_regret_lognormal.pdf")
+# experiment_vary_mse(10, generate_jobs_exponential, "graphs/svf_mse_regret_exponential.pdf")
+
+
+#####################################################
+# # What is the effect of 'larger number of jobs'?
+#####################################################
+# exp_results = [
+#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 6, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
+# ]
+# bar_experiments(exp_results, ["3", "6", "9", "12"], "graphs/svf_nr_jobs.pdf")
+#####################################################
+
+
+
+#####################################################
+# # What is the effect of a low learning sample?
+#####################################################
+# exp_results = [
+#     single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
+# ]
+# bar_experiments(exp_results, ["10000", "1000", "100", "10"], "graphs/svf_samples.pdf")
+#####################################################

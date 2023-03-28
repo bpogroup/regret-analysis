@@ -155,7 +155,7 @@ def regret(actual_job_pts, predicted_job_pts, f_scheduling, f_cost):
     schedule_predicted = f_scheduling(predicted_job_pts)
     costs_actual = f_cost(schedule_predicted, actual_job_pts)
 
-    return (costs_actual - costs_optimal) / costs_optimal
+    return costs_actual - costs_optimal
 
 
 def line_with_ci(series, series2, x_lab, y_lab, y2_lab, fig_file=None):
@@ -255,14 +255,16 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
 
     fig, ax1 = plt.subplots()
     ax1.bar([i for i in range(len(rgt_bars))], rgt_bars, width=bar_width, yerr=rgt_errs)
-    ax1.set_xticks([r for r in range(len(rgt_bars))], x_labels, fontsize=fontsize)
-    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
-    ax1.set_ylabel('regret', fontsize=fontsize)
+    ax1.set_xticks([r+0.5*bar_width for r in range(len(rgt_bars))], x_labels, fontsize=fontsize)
+    # ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
+    ax1.set_ylabel('Empirical regret', fontsize=fontsize)
+    ax1.set_ylim(bottom=0)
 
     ax2 = ax1.twinx()
     ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, color="red")
     ax2.tick_params(axis='y', labelcolor="red")
-    ax2.set_ylabel('mse', color="red", fontsize=fontsize)
+    ax2.set_ylabel('MSE', color="red", fontsize=fontsize)
+    ax2.set_ylim(bottom=0)
 
     for tick in ax1.get_xticklabels():
         tick.set_fontsize(fontsize)
@@ -287,8 +289,8 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
 #####################################################
 # # How do regret/ MSE develop depending on sigma^2?
 #####################################################
-sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5)
-line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse', "graphs/sct_sigma_regret.pdf")
+# sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5)
+# line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse', "graphs/sct_sigma_regret.pdf")
 # # This relation is robust for a different number of jobs.
 # sigma2_x_regret, sigma2_x_mse = experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5)
 # line_with_ci(sigma2_x_regret, sigma2_x_mse, r'$\sigma^2$', 'regret', 'mse')
@@ -317,32 +319,32 @@ bar_experiments(exp_results, ["10000", "1000", "100", "10"], "graphs/a_samples.p
 #####################################################
 # # What is the effect of under-fitting?
 #####################################################
-exp_results = [
-    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1, learn_f_hat_mlp),
-    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1),
-]
-bar_experiments(exp_results, ["normal", "underfitted"], "graphs/b_underfitting.pdf")
+# exp_results = [
+#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1, learn_f_hat_mlp),
+#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1),
+# ]
+# bar_experiments(exp_results, ["baseline", "underfitted"], "graphs/b_underfitting.pdf")
 #####################################################
 
 
 #####################################################
 # # What is the effect of 'missing features'?
 #####################################################
-exp_results = [
-    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1, learn_f_hat_wo_x2, predict_f_hat_wo_x2),
-]
-bar_experiments(exp_results, ["normal", "half"], "graphs/c_missing_features.pdf")
+# exp_results = [
+#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1, learn_f_hat_wo_x2, predict_f_hat_wo_x2),
+# ]
+# bar_experiments(exp_results, ["baseline", "missing features"], "graphs/c_missing_features.pdf")
 #####################################################
 
 #####################################################
 # # What is the effect of 'larger number of jobs'?
 #####################################################
-exp_results = [
-    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 6, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-    single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-    single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
-]
-bar_experiments(exp_results, ["3", "6", "9", "12"], "graphs/d_nr_jobs.pdf")
+# exp_results = [
+#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 6, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
+# ]
+# bar_experiments(exp_results, ["3", "6", "9", "12"], "graphs/d_nr_jobs.pdf")
 #####################################################
