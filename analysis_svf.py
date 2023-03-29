@@ -99,6 +99,21 @@ def generate_jobs_lognormal(p_means, p_sigma2s):
     return jobs
 
 
+def generate_jobs_uniform(p_means, p_sigma2s):
+    jobs = []
+    for i in range(len(p_means)):
+        p_mean = p_means[i]
+        p_sigma2 = p_sigma2s[i]
+
+        spread = sqrt(p_sigma2*12)
+
+        y = np.random.uniform(p_mean - spread/2, p_mean + spread/2)
+
+        jobs.append((p_mean, p_sigma2, y))
+
+    return jobs
+
+
 def xs(jobs):
     return np.array([[x1, x2] for (x1, x2, y) in jobs])
 
@@ -324,7 +339,7 @@ def bar_experiments(experiment_results, x_title, x_labels, fig_file=None):
 
 # experiment_vary_mse(10, generate_jobs_gamma, "graphs/svf_mse_regret_gamma.pdf")
 # experiment_vary_mse(10, generate_jobs_normal, "graphs/svf_mse_regret_normal.pdf")
-# experiment_vary_mse(10, generate_jobs_lognormal, "graphs/svf_mse_regret_lognormal.pdf")
+experiment_vary_mse(10, generate_jobs_uniform, "graphs/svf_mse_regret_uniform.pdf")
 # experiment_vary_mse(10, generate_jobs_exponential, "graphs/svf_mse_regret_exponential.pdf")
 
 
@@ -347,11 +362,11 @@ def bar_experiments(experiment_results, x_title, x_labels, fig_file=None):
 #####################################################
 # # What is the effect of a low learning sample?
 #####################################################
-exp_results = [
-    single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
-]
-bar_experiments(exp_results, "nr. of training samples", ["10000", "1000", "100", "10"], "graphs/svf_samples.pdf")
+# exp_results = [
+#     single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
+# ]
+# bar_experiments(exp_results, "nr. of training samples", ["10000", "1000", "100", "10"], "graphs/svf_samples.pdf")
 #####################################################
