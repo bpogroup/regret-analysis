@@ -175,7 +175,7 @@ def estimate_regret_learned(p_means, p_sigma2s, mse_s, nr_experiments, generatio
         actual_schedule = schedule_svf(actual_jobs)
         actual_costs = cost_svf(actual_schedule, actual_jobs)
 
-        regrets.append(actual_costs - optimal_costs)
+        regrets.append((actual_costs - optimal_costs)/optimal_costs)
 
     avg = mean(regrets)
     ci = st.t.interval(0.95, len(regrets) - 1, loc=avg, scale=st.sem(regrets))
@@ -271,14 +271,17 @@ def single_experiment(generation_function, nr_jobs, nr_learning_samples, f_y, si
         mses.append(mse)
 
     rgt = estimate_regret_learned(means, sigma2s, mses, 10000, generation_function)
-    mse = sum(mses)/len(mses)
+
+    mse = mean(mses)
+    mse_ci = st.t.interval(0.95, len(mses) - 1, loc=mse, scale=st.sem(mses))
+    mse_ci = mse - mse_ci[0]
 
     print(sigma2, mse)
 
-    return (mse, 0), rgt
+    return (mse, mse_ci), rgt
 
 
-def bar_experiments(experiment_results, x_labels, fig_file=None):
+def bar_experiments(experiment_results, x_title, x_labels, fig_file=None):
     fontsize = 16
     bar_width = .4
     rgt_bars = []
@@ -294,12 +297,13 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
     fig, ax1 = plt.subplots()
     ax1.bar([i for i in range(len(rgt_bars))], rgt_bars, width=bar_width, yerr=rgt_errs)
     ax1.set_xticks([r+0.5*bar_width for r in range(len(rgt_bars))], x_labels, fontsize=fontsize)
-    # ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.0f}%'.format(yv*100)))
     ax1.set_ylabel('Empirical regret', fontsize=fontsize)
     ax1.set_ylim(bottom=0)
+    ax1.set_xlabel(x_title, fontsize=fontsize)
 
     ax2 = ax1.twinx()
-    ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, color="red")
+    ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, yerr=mse_errs, color="red")
     ax2.tick_params(axis='y', labelcolor="red")
     ax2.set_ylabel('MSE', color="red", fontsize=fontsize)
     ax2.set_ylim(bottom=0)
@@ -328,12 +332,14 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
 # # What is the effect of 'larger number of jobs'?
 #####################################################
 # exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-#     single_experiment(generate_jobs_gamma, 6, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-#     single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-#     single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
+#     single_experiment(generate_jobs_gamma, 5, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 15, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 20, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 25, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 30, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
 # ]
-# bar_experiments(exp_results, ["3", "6", "9", "12"], "graphs/svf_nr_jobs.pdf")
+# bar_experiments(exp_results, "nr. of tasks", ["5", "10", "15", "20", "25", "30"], "graphs/svf_nr_jobs.pdf")
 #####################################################
 
 
@@ -341,11 +347,11 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
 #####################################################
 # # What is the effect of a low learning sample?
 #####################################################
-# exp_results = [
-#     single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
-# ]
-# bar_experiments(exp_results, ["10000", "1000", "100", "10"], "graphs/svf_samples.pdf")
+exp_results = [
+    single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
+]
+bar_experiments(exp_results, "nr. of training samples", ["10000", "1000", "100", "10"], "graphs/svf_samples.pdf")
 #####################################################

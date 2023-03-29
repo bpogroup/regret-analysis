@@ -155,7 +155,7 @@ def regret(actual_job_pts, predicted_job_pts, f_scheduling, f_cost):
     schedule_predicted = f_scheduling(predicted_job_pts)
     costs_actual = f_cost(schedule_predicted, actual_job_pts)
 
-    return costs_actual - costs_optimal
+    return (costs_actual - costs_optimal)/costs_optimal
 
 
 def line_with_ci(series, series2, x_lab, y_lab, y2_lab, fig_file=None):
@@ -224,6 +224,17 @@ def experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y, f_hat_
     return sigma2_x_regret, sigma2_x_mse
 
 
+def mse_with_ci(true_ys, hat_ys):
+    mses = []
+    for i in range(len(true_ys)):
+        mses.append((true_ys[i] - hat_ys[i])**2)
+    mse = mean(mses)
+    mse_ci = st.t.interval(0.95, len(mses) - 1, loc=mse, scale=st.sem(mses))
+    mse_ci = mse - mse_ci[0]
+
+    return mse, mse_ci
+
+
 def single_experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y, sigma2, f_hat_learner=learn_f_hat, f_hat_predicter=predict_f_hat):
     # 1. Sample some x_i.
     # 2. Generate true y_i = f(x_i) + \epsilon for different epsilon, using f(x) = a \cdot x + b
@@ -231,16 +242,16 @@ def single_experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y,
     # 3. Learn \hat{f} through x_i, y_i combinations
     model = f_hat_learner(jobs)
     # 4. Calculate \hat{MSE} on y_i, \hat{f}(x_i). This should equal \sigma^2 of \epsilon.
-    jobs = job_creation_function(25000, sigma2, f_y)
-    mse = mean_squared_error(ys(jobs), f_hat_predicter(model, jobs))
+    jobs = job_creation_function(10000, sigma2, f_y)
+    mse = mse_with_ci(ys(jobs), f_hat_predicter(model, jobs))
     print(sigma2, mse)
     # 5. Now also calculate the regret.
     rgt = estimate_regret(job_creation_function, model, nr_tasks, sigma2, 10000, f_y, f_hat_predicter)
 
-    return (mse, 0), rgt
+    return mse, rgt
 
 
-def bar_experiments(experiment_results, x_labels, fig_file=None):
+def bar_experiments(experiment_results, x_title, x_labels, fig_file=None):
     fontsize = 16
     bar_width = .4
     rgt_bars = []
@@ -256,12 +267,13 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
     fig, ax1 = plt.subplots()
     ax1.bar([i for i in range(len(rgt_bars))], rgt_bars, width=bar_width, yerr=rgt_errs)
     ax1.set_xticks([r+0.5*bar_width for r in range(len(rgt_bars))], x_labels, fontsize=fontsize)
-    # ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda yv, _: '{:.1f}%'.format(yv*100)))
     ax1.set_ylabel('Empirical regret', fontsize=fontsize)
     ax1.set_ylim(bottom=0)
+    ax1.set_xlabel(x_title, fontsize=fontsize)
 
     ax2 = ax1.twinx()
-    ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, color="red")
+    ax2.bar([i + bar_width for i in range(len(mse_bars))], mse_bars, width=bar_width, yerr=mse_errs, color="red")
     ax2.tick_params(axis='y', labelcolor="red")
     ax2.set_ylabel('MSE', color="red", fontsize=fontsize)
     ax2.set_ylim(bottom=0)
@@ -304,47 +316,29 @@ def bar_experiments(experiment_results, x_labels, fig_file=None):
 
 
 #####################################################
-# # What is the effect of a low learning sample?
-#####################################################
-exp_results = [
-    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 3, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 3, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 3, 10, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-]
-bar_experiments(exp_results, ["10000", "1000", "100", "10"], "graphs/a_samples.pdf")
-#####################################################
-
-
-#####################################################
-# # What is the effect of under-fitting?
-#####################################################
-# exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1, learn_f_hat_mlp),
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1**2 + 5*x2**2, 1),
-# ]
-# bar_experiments(exp_results, ["baseline", "underfitted"], "graphs/b_underfitting.pdf")
-#####################################################
-
-
-#####################################################
-# # What is the effect of 'missing features'?
-#####################################################
-# exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1, learn_f_hat_wo_x2, predict_f_hat_wo_x2),
-# ]
-# bar_experiments(exp_results, ["baseline", "missing features"], "graphs/c_missing_features.pdf")
-#####################################################
-
-#####################################################
 # # What is the effect of 'larger number of jobs'?
 #####################################################
 # exp_results = [
-#     single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-#     single_experiment(generate_jobs_gamma, 6, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-#     single_experiment(generate_jobs_gamma, 9, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
-#     single_experiment(generate_jobs_gamma, 12, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
+#     single_experiment(generate_jobs_gamma, 5, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 15, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 20, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 25, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1),
+#     single_experiment(generate_jobs_gamma, 30, 10000, lambda x1, x2: 5 * x1 + 5 * x2, 1)
 # ]
-# bar_experiments(exp_results, ["3", "6", "9", "12"], "graphs/d_nr_jobs.pdf")
+# bar_experiments(exp_results, "nr. of tasks", ["5", "10", "15", "20", "25", "30"], "graphs/d_nr_jobs.pdf")
+#####################################################
+
+
+
+#####################################################
+# # What is the effect of a low learning sample?
+#####################################################
+exp_results = [
+    single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
+]
+bar_experiments(exp_results, "nr. of training samples", ["10000", "1000", "100", "10"], "graphs/a_samples.pdf")
 #####################################################
