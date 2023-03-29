@@ -242,7 +242,7 @@ def single_experiment(job_creation_function, nr_tasks, nr_learning_samples, f_y,
     # 3. Learn \hat{f} through x_i, y_i combinations
     model = f_hat_learner(jobs)
     # 4. Calculate \hat{MSE} on y_i, \hat{f}(x_i). This should equal \sigma^2 of \epsilon.
-    jobs = job_creation_function(10000, sigma2, f_y)
+    jobs = job_creation_function(20000, sigma2, f_y)
     mse = mse_with_ci(ys(jobs), f_hat_predicter(model, jobs))
     print(sigma2, mse)
     # 5. Now also calculate the regret.
@@ -335,10 +335,10 @@ def bar_experiments(experiment_results, x_title, x_labels, fig_file=None):
 # # What is the effect of a low learning sample?
 #####################################################
 exp_results = [
-    single_experiment(generate_jobs_gamma, 10, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 10, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 10, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
-    single_experiment(generate_jobs_gamma, 10, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 10000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 1000, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 100, lambda x1, x2: 5*x1 + 5*x2, 1),
+    single_experiment(generate_jobs_gamma, 3, 10, lambda x1, x2: 5*x1 + 5*x2, 1),
 ]
 bar_experiments(exp_results, "nr. of training samples", ["10000", "1000", "100", "10"], "graphs/a_samples.pdf")
 #####################################################
